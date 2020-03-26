@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r, include=FALSE}
+install.packages(tree)
 library(rpart)
 library(caret)
 library(tree)
@@ -30,12 +31,64 @@ Como primer paso para realizar el método de Naive Bayes se procederá con reali
 ```{r}
 datos<-read.csv("train.csv")
 
-data <-select(datos, GarageYrBlt, GrLivArea, X1stFlrSF, X2ndFlrSF, GarageCars, SalePrice)
+#data <-select(datos, GarageYrBlt, GrLivArea, X1stFlrSF, X2ndFlrSF, GarageCars, SalePrice)
+#data <- na.omit(data)
+data <-select(datos, LotFrontage, LotArea, YearBuilt, YearRemodAdd, MasVnrArea, BsmtFinSF1,BsmtFinSF2,BsmtUnfSF,TotalBsmtSF,X1stFlrSF,X2ndFlrSF,LowQualFinSF,GrLivArea,TotRmsAbvGrd,Fireplaces,GarageYrBlt,GarageCars,GarageArea,WoodDeckSF,OpenPorchSF,EnclosedPorch,ScreenPorch,PoolArea,MoSold,YrSold,SalePrice)
+#Data cleanup
 data <- na.omit(data)
 
 ```
 
+Además se realizar una matriz de correlación, para ver el peso de las variables en el modelo. 
+
 ```{r}
+matriz_cor <- cor(data)
+matriz_cor
+#corrplot(matriz_cor)
+```
+
+Tomando en cuenta el bajo valor de correlaciónse eliminan todas las variables con un valor menor a 0.6, del modelo.
+
+Se grafican las variables en pares para observar la relación que puede existir entre las mismas, además de realizar un grafico calor.
+
+```{r}
+data <- select(datos, TotalBsmtSF,X1stFlrSF,GrLivArea,GarageCars,GarageArea, SalePrice)
+data <- na.omit(data)
+plot(data)
+matriz_cor <- cor(data)
+matriz_cor
+corrplot(matriz_cor)
+```
+
+Por el alto valor de correlación entre TotalBsmtSF y X1stFlrSF. Se elimina X1stFlrSF, por tener menor valor de correlación contra SalePrice. De igual manera se elimina GarageArea. 
+
+```{r}
+data <- select(datos, TotalBsmtSF,GrLivArea,GarageCars, SalePrice)
+data <- na.omit(data)
+```
+
+
+Se procede a realizar  un test de normalidad para las variables no categoricas.
+
+```{r}
+hist(data$GrLivArea)
+hist(data$TotalBsmtSF)
+```
+
+```{r}
+library(normtest) 
+library(nortest) 
+sf.test(data$TotalBsmtSF)
+sf.test(data$GrLivArea)
+```
+
+Utilizando el test de normalidad de Shapiro-Francia, podemos afirmar que las varibales mostradas anteriormente cuentan con una distribución normal. 
+
+A continuación se procede a la generación de los clústeres mediante K-means. 
+
+```{r}
+data <- select(datos, TotalBsmtSF,GrLivArea,GarageCars, SalePrice)
+data <- na.omit(data)
 cluster <- data
 km<-kmeans(data, 3)
 data$grupo<-km$cluster
@@ -44,12 +97,16 @@ g1 <- data[data$grupo==1, ]
 g2 <- data[data$grupo==2, ]
 g3 <- data[data$grupo==3, ]
 
-summary(g1$SalePrice) # Intermedio
-summary(g2$SalePrice) # Alto
-summary(g3$SalePrice) # Bajo
-
-data$grupo <- mapvalues(data$grupo, c(1,2,3), c("Intermedio","Alto","Bajo"))
+summary(g1$SalePrice) 
+summary(g2$SalePrice) 
+summary(g3$SalePrice) 
 ```
+
+```{r}
+data$grupo <- mapvalues(data$grupo, c(1,2,3), c("Bajo","Intermedio","Alto")) #El orden del identificador depende de los resumentes de la celda anterior
+```
+
+Como se puede observar se genera una clasificación adecuada de grupos,Intermedio,Alto y Bajo. 
 
 Particionamos el dataset en test y train, pero poder realizar un proceso de entrenamiento (con train) y verificar el modelo (con test)
 ```{r}
@@ -64,25 +121,31 @@ test <- data[-corte, ]
 Ahora sí... creamos el modelo de Naive Bayes y observemos cómo rinde el modelo con la matriz de confusión:
 
 ```{r}
+test
+```
+
+
+
+```{r}
 modelo<-naiveBayes(as.factor(train$grupo)~., data=train)
-predBayes<-predict(modelo, newdata = test[, 1:6])
+predBayes<-predict(modelo, newdata = test[,1:4])
 confusionMatrix(table(predBayes, test$grupo))
 ```
 
-La sensitividad y la especificidad son bastantes altas, pues, están por encima de 0.94 en promedio, por lo tanto, podemos decir que el Naive Bayes está acertando. Además, hay un accuracy del 93.5%, así que podemos asumir que no hay overfitting porque se ajustó bastante bien con el dataset de test. También, se confirma que el modelo está bastante bien pues en la matriz de confusión:
+La sensitividad y la especificidad son bastantes altas, pues, están por encima de 0.94 en promedio, por lo tanto, podemos decir que el Naive Bayes está acertando. Además, hay un accuracy del 93.85%, así que podemos asumir que no hay overfitting porque se ajustó bastante bien con el dataset de test. También, se confirma que el modelo está bastante bien pues en la matriz de confusión:
 
-      * Las casas de alto precio se acertaron 30 de 34 = 88%.
-      * Las casas de precio bajo se acertaron 222 de 230 = 96%.
-      * Las casas de precio intermedio se certaron 135 de 150 = 90%.
+      * Las casas de alto precio se acertaron 35 de 43 = 81%.
+      * Las casas de precio bajo se acertaron 232 de 236 = 98%.
+      * Las casas de precio intermedio se certaron 145 de 160 = 91%.
       
 Ahora, lo haremos con Cross Validation (con Caret):
 ```{r}
-ct <- trainControl(method = "cv", train[, 1:6], number=10, verboseIter=T)
+ct <- trainControl(method = "cv", train[, 1:4], number=10, verboseIter=T)
 modeloCaret <- train(as.factor(grupo)~., data=data, method="nb", trControl = ct)
 ```
 
 ```{r, echo=FALSE}
-prediccionCaret <- predict(modeloCaret, newdata = test[, 1:6])
+prediccionCaret <- predict(modeloCaret, newdata = test[, 1:4])
 ```
 ```{r}
 confusionMatrix(table(prediccionCaret, test$grupo))
@@ -90,11 +153,22 @@ confusionMatrix(table(prediccionCaret, test$grupo))
       
 En el proceso de Cross Validation, notamos que es ligeramente más certero que Naive Bayes, debido a:
 
-      * Las casas de alto precio se acertaron 31 de 34 = 91%.
-      * Las casas de precio bajo se acertaron 226 de 231 = 98%.
-      * Las casas de precio intermedio se certaron 139 de 149 = 93%.
+      * Las casas de alto precio se acertaron 36 de 40 = 90%.
+      * Las casas de precio bajo se acertaron 232 de 236 = 98%.
+      * Las casas de precio intermedio se certaron 149 de 163 = 91%.
       
-Todos están arriba del proceso anterior, además, se obtuvo un 0.96 de accuracy y el promedio de la sensitividad y la especificidad es del 0.96.
+Todos están arriba del proceso anterior, además, se obtuvo un 0.95 de accuracy y el promedio de la sensitividad y la especificidad es del 0.96.
       
-      
+```{r}
+#Clasiffication Tree
+dt_model<-rpart(train$grupo~.,train,method = "class") #Genrar modelo
+rpart.plot(dt_model)
+prediccionCT <- predict(dt_model, newdata = test[, 1:4]) #Predecir
+#prediccionCT
+columnaMasAlta<-apply(prediccionCT, 1, function(x) colnames(prediccionCT)[which.max(x)])
+test$prediccionCT<-columnaMasAlta
+confusionMatrix(table(test$prediccionCT,test$grupo))
+cfm
+```
+
       
