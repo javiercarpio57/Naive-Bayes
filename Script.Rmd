@@ -1,18 +1,100 @@
 ---
-title: "R Notebook"
-output: html_notebook
+title: "Modelos de Regresión Lineal"
+author: "Javier Carpio & Paul Belches"
+date: "25/3/2020"
+output: word_document
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
-
-```{r}
-plot(cars)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r, include=FALSE}
+library(rpart)
+library(caret)
+library(tree)
+library(rpart.plot)
+library(randomForest)
+library(plyr)
+library(dplyr) 
+library(fpc)
+library(corrplot)
+library(e1071)
+```
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+## Naive Bayes
 
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+Como primer paso para realizar el método de Naive Bayes se procederá con realizar el proceso de clustering que nos permite agrupar las casas en Bajo, Intermedio y Alto, y así obtener la variable respuesta:
+
+
+```{r}
+datos<-read.csv("train.csv")
+
+data <-select(datos, GarageYrBlt, GrLivArea, X1stFlrSF, X2ndFlrSF, GarageCars, SalePrice)
+data <- na.omit(data)
+
+```
+
+```{r}
+cluster <- data
+km<-kmeans(data, 3)
+data$grupo<-km$cluster
+
+g1 <- data[data$grupo==1, ]
+g2 <- data[data$grupo==2, ]
+g3 <- data[data$grupo==3, ]
+
+summary(g1$SalePrice) # Intermedio
+summary(g2$SalePrice) # Alto
+summary(g3$SalePrice) # Bajo
+
+data$grupo <- mapvalues(data$grupo, c(1,2,3), c("Intermedio","Alto","Bajo"))
+```
+
+Particionamos el dataset en test y train, pero poder realizar un proceso de entrenamiento (con train) y verificar el modelo (con test)
+```{r}
+porcentaje<-0.7
+set.seed(123)
+
+corte <- sample(nrow(data), nrow(data) * porcentaje)
+train <- data[corte, ]
+test <- data[-corte, ]
+```
+
+Ahora sí... creamos el modelo de Naive Bayes y observemos cómo rinde el modelo con la matriz de confusión:
+
+```{r}
+modelo<-naiveBayes(as.factor(train$grupo)~., data=train)
+predBayes<-predict(modelo, newdata = test[, 1:6])
+confusionMatrix(table(predBayes, test$grupo))
+```
+
+La sensitividad y la especificidad son bastantes altas, pues, están por encima de 0.94 en promedio, por lo tanto, podemos decir que el Naive Bayes está acertando. Además, hay un accuracy del 93.5%, así que podemos asumir que no hay overfitting porque se ajustó bastante bien con el dataset de test. También, se confirma que el modelo está bastante bien pues en la matriz de confusión:
+
+      * Las casas de alto precio se acertaron 30 de 34 = 88%.
+      * Las casas de precio bajo se acertaron 222 de 230 = 96%.
+      * Las casas de precio intermedio se certaron 135 de 150 = 90%.
+      
+Ahora, lo haremos con Cross Validation (con Caret):
+```{r}
+ct <- trainControl(method = "cv", train[, 1:6], number=10, verboseIter=T)
+modeloCaret <- train(as.factor(grupo)~., data=data, method="nb", trControl = ct)
+```
+
+```{r, echo=FALSE}
+prediccionCaret <- predict(modeloCaret, newdata = test[, 1:6])
+```
+```{r}
+confusionMatrix(table(prediccionCaret, test$grupo))
+```
+      
+En el proceso de Cross Validation, notamos que es ligeramente más certero que Naive Bayes, debido a:
+
+      * Las casas de alto precio se acertaron 31 de 34 = 91%.
+      * Las casas de precio bajo se acertaron 226 de 231 = 98%.
+      * Las casas de precio intermedio se certaron 139 de 149 = 93%.
+      
+Todos están arriba del proceso anterior, además, se obtuvo un 0.96 de accuracy y el promedio de la sensitividad y la especificidad es del 0.96.
+      
+      
+      
