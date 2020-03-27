@@ -10,7 +10,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r, include=FALSE}
-install.packages(tree)
 library(rpart)
 library(caret)
 library(tree)
@@ -68,7 +67,7 @@ data <- na.omit(data)
 ```
 
 
-Se procede a realizar  un test de normalidad para las variables no categoricas.
+Se procede a realizar un test de normalidad para las variables no categoricas.
 
 ```{r}
 hist(data$GrLivArea)
@@ -103,7 +102,7 @@ summary(g3$SalePrice)
 ```
 
 ```{r}
-data$grupo <- mapvalues(data$grupo, c(1,2,3), c("Bajo","Intermedio","Alto")) #El orden del identificador depende de los resumentes de la celda anterior
+data$grupo <- mapvalues(data$grupo, c(1,2,3), c("Bajo", "Alto", "Intermedio")) #El orden del identificador depende de los resumentes de la celda anterior
 ```
 
 Como se puede observar se genera una clasificación adecuada de grupos,Intermedio,Alto y Bajo. 
@@ -121,22 +120,22 @@ test <- data[-corte, ]
 Ahora sí... creamos el modelo de Naive Bayes y observemos cómo rinde el modelo con la matriz de confusión:
 
 ```{r}
-test
+head(test)
 ```
 
 
 
 ```{r}
 modelo<-naiveBayes(as.factor(train$grupo)~., data=train)
-predBayes<-predict(modelo, newdata = test[,1:4])
+predBayes<-predict(modelo, newdata = test[, 1:4])
 confusionMatrix(table(predBayes, test$grupo))
 ```
 
 La sensitividad y la especificidad son bastantes altas, pues, están por encima de 0.94 en promedio, por lo tanto, podemos decir que el Naive Bayes está acertando. Además, hay un accuracy del 93.85%, así que podemos asumir que no hay overfitting porque se ajustó bastante bien con el dataset de test. También, se confirma que el modelo está bastante bien pues en la matriz de confusión:
 
-      * Las casas de alto precio se acertaron 35 de 43 = 81%.
-      * Las casas de precio bajo se acertaron 232 de 236 = 98%.
-      * Las casas de precio intermedio se certaron 145 de 160 = 91%.
+      * Las casas de alto precio se acertaron 33 de 40 = 83%.
+      * Las casas de precio bajo se acertaron 219 de 226 = 98%.
+      * Las casas de precio intermedio se certaron 158 de 173 = 91%.
       
 Ahora, lo haremos con Cross Validation (con Caret):
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
@@ -153,9 +152,9 @@ confusionMatrix(table(prediccionCaret, test$grupo))
       
 En el proceso de Cross Validation, notamos que es ligeramente más certero que Naive Bayes, debido a:
 
-      * Las casas de alto precio se acertaron 36 de 40 = 90%.
-      * Las casas de precio bajo se acertaron 232 de 236 = 98%.
-      * Las casas de precio intermedio se certaron 149 de 163 = 91%.
+      * Las casas de alto precio se acertaron 35 de 37 = 95%.
+      * Las casas de precio bajo se acertaron 222 de 225 = 99%.
+      * Las casas de precio intermedio se certaron 167 de 177 = 94%.
       
 Todos están arriba del proceso anterior, además, se obtuvo un 0.95 de accuracy y el promedio de la sensitividad y la especificidad es del 0.96.
 
@@ -181,7 +180,7 @@ Como se puede observar el árbol de clasificación tiene un accuracy del 81.55%,
 
 ## Conclusión
 
-Podemos afirmar que el algoritmo de Naive Bayes, es superior a el árbol de clasificación. Esto gracias a que al comparar factores como el accuracy y la sensitividad son mejores. Además los porcentajes de predicción para cada uno de los grupos también es mejor. En el caso de el árbol de clasificación, el hecho de que tenga un porcentaje del 60% para las casas de alto precio, puede llegar a ser una desventaja. Gracias a que puede significar una perdida monetaria. Por lo que se recomienda la utlización de naive bayes en su lugar. 
+Podemos afirmar que el algoritmo de Naive Bayes, es superior a el árbol de clasificación. Esto gracias a que al comparar factores como el accuracy y la sensitividad y especificidad son mejores. Además los porcentajes de predicción para cada uno de los grupos también es mejor. En el caso de el árbol de clasificación, el hecho de que tenga un porcentaje del 60% para las casas de alto precio, puede llegar a ser una desventaja. Gracias a que puede significar una perdida monetaria. Por lo que se recomienda la utlización de naive bayes en su lugar. 
 
 
 
